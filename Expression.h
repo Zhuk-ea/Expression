@@ -85,19 +85,57 @@ class Binary: public ExpressionInterface<T> {
     public:
         shared_ptr<ExpressionInterface<T>> left;
         shared_ptr<ExpressionInterface<T>> right;
-        Binary(FuncTypes func, int ord) {
+        Binary(FuncTypes func) {
             func_type = func;
-            order = ord;
+            if (func == ADD || func == MINUS) {
+                order = 1;
+                return;
+            }
+            if (func == POW) {
+                order = 3;
+                return;
+            }
+            order = 2;
         }
-        Binary(FuncTypes func, int ord, shared_ptr<ExpressionInterface<T>> &l, shared_ptr<ExpressionInterface<T>> &r ) {
+        Binary(FuncTypes func,shared_ptr<ExpressionInterface<T>> &l) {
             func_type = func;
-            order = ord;
+            func_type = func;
+            if (func == ADD || func == MINUS) {
+                order = 1;
+                return;
+            }
+            if (func == POW) {
+                order = 3;
+                return;
+            }
+            order = 2;
+            left = l;
+        }
+        Binary(FuncTypes func, shared_ptr<ExpressionInterface<T>> &l, shared_ptr<ExpressionInterface<T>> &r ) {
+            func_type = func;
+            if (func == ADD || func == MINUS) {
+                order = 1;
+                return;
+            }
+            if (func == POW) {
+                order = 3;
+                return;
+            }
+            order = 2;
             left = l;
             right = r;
         }
-        Binary(FuncTypes func, int ord, const shared_ptr<ExpressionInterface<T>> &l, const shared_ptr<ExpressionInterface<T>> &r ) {
+        Binary(FuncTypes func, const shared_ptr<ExpressionInterface<T>> &l, const shared_ptr<ExpressionInterface<T>> &r ) {
             func_type = func;
-            order = ord;
+            if (func == ADD || func == MINUS) {
+                order = 1;
+                return;
+            }
+            if (func == POW) {
+                order = 3;
+                return;
+            }
+            order = 2;
             left = l;
             right = r;
         }
@@ -216,7 +254,7 @@ class Mono: public ExpressionInterface<T> {
 template <typename T>
 class Expression {
     public:
-        //Expression(string str);
+        Expression(string str);
         Expression(T num) {
             shared_ptr<Value<T>> t(new Value(num));
             Expr = t;
@@ -224,27 +262,88 @@ class Expression {
         Expression(const shared_ptr<ExpressionInterface<T>> &p) {
             Expr = p;
         }
+
+        Expression<T> operator=(const Expression<T>& b) {
+            string str = b.to_str();
+            return Expression(str);
+        }
         
         Expression<T>  operator+ (const Expression<T>& b) const {
             if (typeid(*Expr) == typeid(Value<T>) && typeid(*b.Expr) == typeid(Value<T>)) {
                 shared_ptr<Value<T>> p (new Value(Expr->eval({}) + b.Expr->eval({})));
                 return Expression<T>(p);
             }
-            shared_ptr<ExpressionInterface<T>> add(new Binary(ADD, 1, Expr, b.Expr));
-            return Expression(add);
+            shared_ptr<ExpressionInterface<T>> t(new Binary(ADD, Expr, b.Expr));
+            Expression res(t);
+            string str = res.to_str();
+            return Expression(str);
         }
 
-        
-        Expression<T> operator=(const Expression<T>& b) {
-            string str = b.to_str();
-            Expression res(str);
-            return res;
+        Expression& operator+=(const Expression& b) {
+            return this + b;
         }
-        /*
-        Expression& operator+=(const Expression& b);
-        Expression  operator* (const Expression& b);
-        Expression& operator*=(const Expression& b);
-        */
+
+        Expression<T>  operator* (const Expression<T>& b) const {
+            if (typeid(*Expr) == typeid(Value<T>) && typeid(*b.Expr) == typeid(Value<T>)) {
+                shared_ptr<Value<T>> p (new Value(Expr->eval({}) * b.Expr->eval({})));
+                return Expression<T>(p);
+            }
+            shared_ptr<ExpressionInterface<T>> t(new Binary(MULTIPLY, Expr, b.Expr));
+            Expression res(t);
+            string str = res.to_str();
+            return Expression(str);
+        }
+
+        Expression& operator*=(const Expression& b) {
+            return this * b;
+        }
+
+        Expression<T>  operator-(const Expression<T>& b) const {
+            if (typeid(*Expr) == typeid(Value<T>) && typeid(*b.Expr) == typeid(Value<T>)) {
+                shared_ptr<Value<T>> p (new Value(Expr->eval({}) - b.Expr->eval({})));
+                return Expression<T>(p);
+            }
+            shared_ptr<ExpressionInterface<T>> t(new Binary(MINUS,  Expr, b.Expr));
+            Expression res(t);
+            string str = res.to_str();
+            return Expression(str);
+        }
+        Expression& operator-=(const Expression& b) {
+            return this - b;
+        }
+
+        Expression<T>  operator/ (const Expression<T>& b) const {
+            if (typeid(*Expr) == typeid(Value<T>) && typeid(*b.Expr) == typeid(Value<T>)) {
+                try {
+                    if (b.Expr->eval({})) {
+                        shared_ptr<Value<T>> p (new Value(Expr->eval({}) / b.Expr->eval({})));
+                        return Expression<T>(p);
+                        }
+                    throw "Division by zero!";
+                }
+                catch (...) {
+                    cout << "Division by zero!" << endl;
+                }
+            }
+
+            if (typeid(*b.Expr) == typeid(Value<T>)) {
+                try {
+                    if (b.Expr->eval({})) {
+                        shared_ptr<ExpressionInterface<T>> t(new Binary(DIVIDE,  Expr, b.Expr));
+                        Expression res(t);
+                        string str = res.to_str();
+                        return Expression(str);
+                    }
+                    throw "Division by zero!";
+                }
+                catch (...) {
+                    cout << "Division by zero!" << endl;
+                }
+            }
+        }
+        Expression& operator/=(const Expression& b) {
+            return this / b;
+        }
 
         T eval(map<string, T> context) const {
             return Expr->eval(context);
@@ -257,4 +356,72 @@ class Expression {
     private:
         shared_ptr<ExpressionInterface<T>> Expr;
 };
+
+template <typename T>
+inline Expression<T>::Expression(string str) {
+    
+}
+
+template <typename T>
+ExpressionInterface<T> pars(T type,string &str, int &index) {
+    ExpressionInterface<T> start;
+    ExpressionInterface<T> * now = &start;
+    string memory = "";
+    bool get_var = false;
+    bool get_val = false;
+    char c;
+    int i;
+    for (i = index; str[i] != '\0' && str[i] != ')'  ; ++i) {
+        c = str[i];
+        if (get_val == get_var == false && c != ' ') {
+            if ('0' <= c <= '9') {
+                get_var = true;
+            }
+            else {
+                get_val = true;
+            }
+        }
+        if (c = ' ') {
+            if ((get_var || get_val)) {
+                get_val = false;
+                get_var = false;
+            }
+            i++;
+            c = str[i];
+            switch (c)
+            {
+            case '+':
+                shared_ptr<ExpressionInterface<T>> l(now);
+                Binary t(ADD, l);
+                l->parent = shared_ptr(t);
+                now = *t;
+                break;
+            case '-':
+                shared_ptr<ExpressionInterface<T>> l(now);
+                Binary t(MINUS, l);
+                l->parent = shared_ptr(t);
+                now = *t;
+                break;
+            case '*':
+                
+                break;
+            case '/':
+                break;
+            default:
+                break;
+            }
+        }
+        else if (c == '^') {
+
+        }
+        else if (c == '(') {
+            ExpressionInterface<T> t = pars(type, str, i);
+        }
+        else {
+            memory += c;
+        }
+    }
+}
+
+
 #endif
