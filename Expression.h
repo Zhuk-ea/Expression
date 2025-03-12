@@ -6,6 +6,8 @@
 #include <memory>
 #include <complex>
 #include <cmath>
+#include <stdlib.h>
+#include "Tokenizer.h"
 
 
 using namespace std;
@@ -31,7 +33,8 @@ template <typename T>
 class ExpressionInterface {
     public:
         shared_ptr<ExpressionInterface<T>> parent = NULL;
-        int order;
+        shared_ptr<ExpressionInterface<T>> right = NULL;
+        int order = 0;
 
         ExpressionInterface() = default;
         virtual ~ExpressionInterface() = default;
@@ -48,7 +51,6 @@ class Value: public ExpressionInterface<T> {
         T value;
         Value(T val) {
             value = val;
-            this->order = 0;
         }
 
         virtual ~Value() override = default;
@@ -84,7 +86,6 @@ template <typename T>
 class Binary: public ExpressionInterface<T> {
     public:
         shared_ptr<ExpressionInterface<T>> left;
-        shared_ptr<ExpressionInterface<T>> right;
         Binary(FuncTypes func) {
             func_type = func;
             if (func == ADD || func == MINUS) {
@@ -109,7 +110,7 @@ class Binary: public ExpressionInterface<T> {
                 return;
             }
             order = 2;
-            left = l;
+            this->left = l;
         }
         Binary(FuncTypes func, shared_ptr<ExpressionInterface<T>> &l, shared_ptr<ExpressionInterface<T>> &r ) {
             func_type = func;
@@ -122,8 +123,8 @@ class Binary: public ExpressionInterface<T> {
                 return;
             }
             order = 2;
-            left = l;
-            right = r;
+            this->left = l;
+            this->right = r;
         }
         Binary(FuncTypes func, const shared_ptr<ExpressionInterface<T>> &l, const shared_ptr<ExpressionInterface<T>> &r ) {
             func_type = func;
@@ -136,8 +137,8 @@ class Binary: public ExpressionInterface<T> {
                 return;
             }
             order = 2;
-            left = l;
-            right = r;
+            this->left = l;
+            this->right = r;
         }
     
         virtual ~Binary() override = default;
@@ -145,15 +146,15 @@ class Binary: public ExpressionInterface<T> {
         virtual T eval(map<string, T> context) const override {
             switch (func_type) {
                 case ADD:
-                    return left->eval(context) + right->eval(context);
+                    return this->left->eval(context) + this->right ->eval(context);
                 case MINUS:
-                    return left->eval(context) - right->eval(context);
+                    return this->left->eval(context) - this->right ->eval(context);
                 case MULTIPLY:
-                    return left->eval(context) * right->eval(context);
+                    return this->left->eval(context) * this->right ->eval(context);
                 case DIVIDE:
-                    return left->eval(context) / right->eval(context);
+                    return this->left->eval(context) / this->right ->eval(context);
                 case POW:
-                    return pow(left->eval(context), right->eval(context));
+                    return pow(this->left->eval(context), this->right ->eval(context));
                 }
             return 0;
         }
@@ -162,7 +163,7 @@ class Binary: public ExpressionInterface<T> {
             if (this->parent != NULL && this->parent->order == 1) { 
                 s += "(";
             }
-            s += left->to_str();
+            s += this->left->to_str();
 
             switch (func_type) {
                 case ADD:
@@ -179,21 +180,28 @@ class Binary: public ExpressionInterface<T> {
                     break;
                 case POW:
                     string s = "";
-                    if (left->order == 0) {
-                        s += left->to_str() + "^";
+                    if (this->left->order == 0) {
+                        s += this->left->to_str() + "^";
                     }
                     else {
-                        s += "(" + left->to_str() + ")^";
+                        s += "(" + this->left->to_str() + ")^";
                     }
-                    if (right->order == 0) {
-                        s += right->to_str();
+                    if (this->right ->order == 0) {
+                        s += this->right->to_str();
                     }
                     else {
-                        s += "(" + right->to_str() + ")";
+                        s += "(" + this->right ->to_str() + ")";
                     }
                     return s;
+                case BRACKETS:
+                    if (this->parent == NULL) {
+                        return this->right->to_str();
+                    }
+                    else {
+                        return "(" + this->right->to_str() + ")";
+                    }
                 }
-                s += right->to_str();
+                s += this->right->to_str();
                 if (this->parent != NULL && this->parent->order == 1) { 
                     s += ")";
                 }
@@ -207,9 +215,16 @@ class Binary: public ExpressionInterface<T> {
 template <typename T>
 class Mono: public ExpressionInterface<T> {
     public:
-        shared_ptr<ExpressionInterface<T>> child;
         Mono(FuncTypes func) {
             func_type = func;
+        }
+        Mono(FuncTypes func, shared_ptr<ExpressionInterface<T>> &r) {
+            func_type = func;
+            this->right = r;
+        }
+        Mono(FuncTypes func, const shared_ptr<ExpressionInterface<T>> &r) {
+            func_type = func;
+            this->right = r;
         }
 
         virtual ~Mono() override = default;
@@ -217,15 +232,15 @@ class Mono: public ExpressionInterface<T> {
             switch (func_type)
             {
             case LN:
-                return log(child->eval(context));
+                return log(this->right ->eval(context));
             case EXP:
-                return exp(child->eval(context));
+                return exp(this->right ->eval(context));
             case SIN:
-                return sin(child->eval(context));
+                return sin(this->right ->eval(context));
             case COS:
-                return cos(child->eval(context));
+                return cos(this->right ->eval(context));
             case BRACKETS:
-                return child->eval(context);
+                return this->right ->eval(context);
             }
             return Value_t();
         }
@@ -233,15 +248,15 @@ class Mono: public ExpressionInterface<T> {
             switch (func_type)
             {
             case LN:
-                return "ln(" + child->to_str() + ")";
+                return "ln(" + this->right ->to_str() + ")";
             case EXP:
-                return "exp(" + child->to_str() + ")";
+                return "exp(" + this->right ->to_str() + ")";
             case SIN:
-                return "sin(" + child->to_str() + ")";
+                return "sin(" + this->right ->to_str() + ")";
             case COS:
-                return "cos(" + child->to_str() + ")";
+                return "cos(" + this->right ->to_str() + ")";
             case BRACKETS: 
-                return "(" + child->to_str() + ")";
+                return "(" + this->right ->to_str() + ")";
             }
         }
 
@@ -254,9 +269,13 @@ class Mono: public ExpressionInterface<T> {
 template <typename T>
 class Expression {
     public:
-        Expression(string str);
-        Expression(T num) {
-            shared_ptr<Value<T>> t(new Value(num));
+        Expression<T>(string &str);
+        Expression(double num) {
+            shared_ptr<Value<double>> t(new Value<double>(num));
+            Expr = t;
+        }
+        Expression(complex<double> num) {
+            shared_ptr<Value<complex<double>>> t(new Value<complex<double>>(num));
             Expr = t;
         }
         Expression(const shared_ptr<ExpressionInterface<T>> &p) {
@@ -358,69 +377,150 @@ class Expression {
 };
 
 template <typename T>
-inline Expression<T>::Expression(string str) {
-    
+shared_ptr<Value<T>> create_value(T type, vector<string> &vec, int &index) { 
+    if (vec[index][vec[index].size()-1] != 'i') {
+        double t = stod(vec[0]);
+        shared_ptr<Value<double>> res = make_shared<Value<double>>(t);
+        ++index;
+        return res;
+    }
+    else {
+        string t = vec[index];
+        t.pop_back();
+        complex<double> c = stod(t)*1i;
+        shared_ptr<Value<complex<double>>> res = make_shared<Value<complex<double>>>(c);
+        ++index;
+        return res;
+    }
 }
 
 template <typename T>
-ExpressionInterface<T> pars(T type,string &str, int &index) {
-    ExpressionInterface<T> start;
-    ExpressionInterface<T> * now = &start;
-    string memory = "";
-    bool get_var = false;
-    bool get_val = false;
-    char c;
-    int i;
-    for (i = index; str[i] != '\0' && str[i] != ')'  ; ++i) {
-        c = str[i];
-        if (get_val == get_var == false && c != ' ') {
-            if ('0' <= c <= '9') {
-                get_var = true;
-            }
-            else {
-                get_val = true;
-            }
-        }
-        if (c = ' ') {
-            if ((get_var || get_val)) {
-                get_val = false;
-                get_var = false;
-            }
-            i++;
-            c = str[i];
-            switch (c)
-            {
-            case '+':
-                shared_ptr<ExpressionInterface<T>> l(now);
-                Binary t(ADD, l);
-                l->parent = shared_ptr(t);
-                now = *t;
-                break;
-            case '-':
-                shared_ptr<ExpressionInterface<T>> l(now);
-                Binary t(MINUS, l);
-                l->parent = shared_ptr(t);
-                now = *t;
-                break;
-            case '*':
-                
-                break;
-            case '/':
-                break;
-            default:
-                break;
-            }
-        }
-        else if (c == '^') {
+shared_ptr<Variable<T>> create_variable(T type, vector<string> &vec, int &index) {
+    if (vec[index][vec[index].size()-1] != 'i') {
+        shared_ptr<Variable<double>> res = make_shared<Variable<double>>(vec[index]);
+        ++index;
+        return res;
+    }
+    else {
+        string t = vec[index];
+        t.pop_back();
+        shared_ptr<Variable<complex<double>>> res = make_shared<Variable<complex<double>>>(t);
+        ++index;
+        return res;
+    }
+}
 
+template <typename T>
+shared_ptr<Mono<T>> create_mono(T type, vector<string> &vec, int &index) { 
+    FuncTypes func;
+    switch (vec[index][0]){
+        case 's':
+            func = SIN;
+            break;
+        case '(':
+            func = BRACKETS;
+            break;
+        case 'c':
+            func = COS;
+            break;
+        case 'l':
+            func = LN;
+            break;
+        case 'e':
+            func = EXP;
+            break;
+    }
+    ++index;
+    shared_ptr<Mono<T>> res(new Mono<T>(func, pars(type, vec, index)));
+    return res;
+}
+
+template <typename T>
+shared_ptr<ExpressionInterface<T>> pars(T type, vector<string> &vec, int &index) {
+    shared_ptr<ExpressionInterface<T>> root(new Mono<T>(BRACKETS));
+    shared_ptr<ExpressionInterface<T>> now = root;
+    if ('0' <= vec[index][0] <= '9') { // Получаем константу
+        now = create_value(type, vec, index);
+    }
+    else if ('a' <= vec[index][0] <= 'z' || 'A' <= vec[index][0] <= 'Z'){ // Получаем переменную или функцию
+        if (vec.size() > (index+1)) { // Не последний операнд
+            if (vec[index+1][0] != '(') { // После не идут скобки
+                shared_ptr<ExpressionInterface<T>> t = create_variable(type, vec, index);
+                now->right = t;
+                t->parent = now;
+                now = t;
+            }
+            else { // После идут скобки, то есть это функция
+                shared_ptr<ExpressionInterface<T>> t = create_mono(type, vec, index);
+                now->right = t;
+                t->parent = now;
+                now = t;
+            }
         }
-        else if (c == '(') {
-            ExpressionInterface<T> t = pars(type, str, i);
-        }
-        else {
-            memory += c;
+        else { // Последний операнд, значит после не может быть скобок и это переменная
+            shared_ptr<ExpressionInterface<T>> t = create_variable(type, vec, index);
+            now->right = t;
+            t->parent = now;
+            now = t;
         }
     }
+    else if (vec[index][0] == '(') { // Получаем скобку
+        shared_ptr<ExpressionInterface<T>> t = create_mono(type, vec, index);
+        now->right = t;
+        t->parent = now;
+        now = t;
+    }
+    else { // Получаем оператор
+        FuncTypes func;
+        switch (vec[index][0]) {
+            case '+':
+                func = ADD;
+                break;
+            case '-':
+                func = MINUS;
+                break;
+            case '*':
+                func = MULTIPLY;
+                break;
+            case '/':
+                func = DIVIDE;
+                break;
+            case '^':
+                func = POW;
+                break;
+        }
+        shared_ptr<Binary<T>> b(new Binary<T>(func));
+        while (true) {
+            if (now->parent == NULL) {
+                now->parent = b;
+                b->left = now;
+                now = b;
+                root = b;
+                break;
+            }
+            else if (now->parent->order <= b->order) {
+                now->parent->right = b;
+                b->parent = now->parent;
+                now->parent = b;
+                b->left = now;
+                now = b;
+                break;
+            }
+            else {
+                now = now->parent;
+            }
+        }  
+    }
+    return root;
+}
+
+
+template <typename T>
+inline Expression<T>::Expression(string &str) {
+    vector<string> vec = tokenize(str);
+    T type;
+    int index = 0;
+    this->Expr = pars(type,vec,index);
 }
 
 

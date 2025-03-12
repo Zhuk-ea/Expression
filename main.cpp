@@ -1,15 +1,14 @@
 #include <iostream>
 #include "Expression.h"
+#include "Tokenizer.h"
 
 
 using namespace std;
 
 int main() {
-    cout << "Start\n";
-    Expression a(10);
-    Expression b(5);
-    Expression c = a + b;
-    cout << c.to_str() << endl;
+    string s = "123 + sin(x) * y";
+    Expression<double> a(s);
+    
 
     return 0;
 }
