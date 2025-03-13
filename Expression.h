@@ -46,13 +46,22 @@ class ExpressionInterface {
 };
 
 string to_string(const complex<double> &value) {
-    string s = to_string(value.real());
+    string s = "";
+    if (value.real() != 0) {
+        s += to_string(value.real());
+    } 
     double a = value.imag();
     if (a > 0) {
-        s += " + " + to_string(value.imag()) + "i";
+        if (value.real() != 0) {
+            s += " + ";
+        }
+        s +=  to_string(value.imag()) + "i";
     }
     else if (a < 0) {
-        s += " + " + to_string(abs(value.imag())) + "i";
+        if (value.real() != 0) {
+            s += " - ";
+        }
+        s += to_string(abs(value.imag())) + "i";
     }
     return s;
 }
@@ -78,6 +87,20 @@ class Value: public ExpressionInterface<T> {
         }
 };
 
+
+double var_eval(map<string, double> context, const string &name) {
+    return context[name];
+}
+complex<double> var_eval(map<string, complex<double>> &context, const string &name) {
+    if (name.back() == 'i') {
+        string s = name;
+        s.pop_back();
+        return context[s]*1i;
+    }
+    return context[name];
+}
+
+
 template <typename T>
 class Variable: public ExpressionInterface<T> {
     public:
@@ -89,7 +112,7 @@ class Variable: public ExpressionInterface<T> {
         virtual ~Variable() override = default;
 
         virtual T eval(map<string, T> context) const override {
-            return context[name];
+            return var_eval(context, name);
         }
         virtual string to_str() const override {
             return name;
@@ -402,10 +425,27 @@ class Expression {
 template <typename T>
 shared_ptr<ExpressionInterface<T>> pars(T type, vector<string> &vec, int &index);
 
-template <typename T>
-shared_ptr<Value<T>> create_value(T type, vector<string> &vec, int &index) { 
+
+shared_ptr<Value<double>> create_value(double type, vector<string> &vec, int &index) { 
     double t = stod(vec[index]);
     shared_ptr<Value<double>> res = make_shared<Value<double>>(t);
+    ++index;
+    return res;
+}
+shared_ptr<Value<complex<double>>> create_value(complex<double> type, vector<string> &vec, int &index) { 
+    using namespace complex_literals;
+    complex<double> c;
+    if (vec[index].back() != 'i') {
+        double t = stod(vec[index]);
+        c = t + 0i;
+    }
+    else {
+        string s = vec[index];
+        s.pop_back(); 
+        double t = stod(vec[index]);
+        c = t*1i;
+    }
+    shared_ptr<Value<complex<double>>> res = make_shared<Value<complex<double>>>(c);
     ++index;
     return res;
 }
@@ -416,6 +456,7 @@ shared_ptr<Variable<T>> create_variable(T type, vector<string> &vec, int &index)
     ++index;
     return res;
 }
+
 
 template <typename T>
 shared_ptr<Mono<T>> create_mono(T type, vector<string> &vec, int &index) { 
