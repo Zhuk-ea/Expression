@@ -6,8 +6,11 @@
 using namespace std;
 
 int main() {
-    string s = "123 + sin(x) * y";
-    Expression<double> a(s);
+    string s1 = "123 + sin(x) * y";
+    string s2 = "123 * x + sin(x + y) * y";
+
+    Expression<double> a(s2);
+    cout << a.to_str() << endl;
     
 
     return 0;
