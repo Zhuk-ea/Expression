@@ -27,6 +27,12 @@ vector<string> tokenize(string &str) {
             res.push_back(s);
             s = c;
         }
+        else if (c == '^' && s != "") {
+            res.push_back(s);
+            s = c;
+            res.push_back(s);
+            s = "";
+        }
         else {
             s += c;
         }

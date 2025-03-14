@@ -41,6 +41,7 @@ class ExpressionInterface {
         virtual ~ExpressionInterface() = default;
         virtual T eval(std::map<string, T> context) const = 0;
         virtual string to_str() const = 0;
+        virtual shared_ptr<ExpressionInterface<T>> diff(string & context) const = 0;
 
         
 
@@ -86,6 +87,11 @@ class Value: public ExpressionInterface<T> {
         virtual string to_str() const override {
             return to_string(value);
         }
+        virtual shared_ptr<ExpressionInterface<T>> diff(string & context) const {
+            T val = 0;
+            return shared_ptr<ExpressionInterface<T>>(new Value<T>(val));
+        }
+        
 };
 
 
@@ -101,6 +107,23 @@ complex<double> var_eval(map<string, complex<double>> &context, const string &na
     return context[name];
 }
 
+
+double var_diff(double type, const string &name, string &context) {
+    if (name == context)
+        return 1;
+    return 0;
+}
+
+complex<double> var_diff(complex<double> type, const string &name, string &context) {
+    string s = name;
+    if (s.back() == 'i') {
+        s.pop_back();
+    }
+    if (s == context) {
+        return 1i;
+    }
+    return 0;
+}
 
 template <typename T>
 class Variable: public ExpressionInterface<T> {
@@ -118,7 +141,13 @@ class Variable: public ExpressionInterface<T> {
         virtual string to_str() const override {
             return name;
         }
+        virtual shared_ptr<ExpressionInterface<T>> diff(string & context) const {
+            T type;
+            T val = var_diff(type, name, context);
+            return shared_ptr<Value<T>>(new Value<T>(val));
+        }
 };
+
 
 template <typename T>
 class Binary: public ExpressionInterface<T> {
@@ -154,10 +183,14 @@ class Binary: public ExpressionInterface<T> {
             func_type = func;
             if (func == ADD || func == MINUS) {
                 this->order = 1;
+                this->left = l;
+                this->right = r;
                 return;
             }
             if (func == POW) {
                 this->order = 3;
+                this->left = l;
+                this->right = r;
                 return;
             }
             this->order = 2;
@@ -168,10 +201,14 @@ class Binary: public ExpressionInterface<T> {
             func_type = func;
             if (func == ADD || func == MINUS) {
                 this->order = 1;
+                this->left = l;
+                this->right = r;
                 return;
             }
             if (func == POW) {
                 this->order = 3;
+                this->left = l;
+                this->right = r;
                 return;
             }
             this->order = 2;
@@ -196,6 +233,9 @@ class Binary: public ExpressionInterface<T> {
                 }
             return 0;
         }
+
+        virtual shared_ptr<ExpressionInterface<T>> diff(string & context) const;
+
         virtual string to_str() const override {
             string s = "";
             if (this->left->order < this->order && this->left->order != 0) {
@@ -269,15 +309,15 @@ class Mono: public ExpressionInterface<T> {
             switch (func_type)
             {
             case LN:
-                return log(this->right ->eval(context));
+                return log(this->right->eval(context));
             case EXP:
-                return exp(this->right ->eval(context));
+                return exp(this->right->eval(context));
             case SIN:
-                return sin(this->right ->eval(context));
+                return sin(this->right->eval(context));
             case COS:
                 return cos(this->right ->eval(context));
             case BRACKETS:
-                return this->right ->eval(context);
+                return this->right->eval(context);
             }
             return Value_t();
         }
@@ -301,6 +341,7 @@ class Mono: public ExpressionInterface<T> {
             }
             return "";
         }
+        virtual shared_ptr<ExpressionInterface<T>> diff(string & context) const;
 
         FuncTypes func_type;
         int order;
@@ -404,6 +445,17 @@ class Expression {
         }
         string to_str() const {
             return  Expr->to_str();
+        }
+        Expression diff(string& context) {
+            return Expression(Expr->diff(context));
+        }
+        Expression diff(const char* context) {
+            string s = context;
+            return Expression(Expr->diff(s));
+        }
+        Expression diff(char* context) {
+            string s = context;
+            return Expression(Expr->diff(s));
         }
         //shared_ptr<Expression<T>> diff(string context) const;
         
@@ -583,5 +635,83 @@ inline Expression<T>::Expression(string &str) {
     this->Expr = pars(type, vec, index);
 }
 
+
+template <typename T>
+inline shared_ptr<ExpressionInterface<T>> Binary<T>::diff(string &context) const {
+    
+    shared_ptr<ExpressionInterface<T>> l = this->left;
+    shared_ptr<ExpressionInterface<T>> r = this->right;
+    shared_ptr<ExpressionInterface<T>> l_diff = this->left->diff(context);
+    shared_ptr<ExpressionInterface<T>> r_diff = this->right->diff(context);
+    /*
+    cout << "l_diff: " << l_diff->to_str() << endl; 
+    cout << "r_diff: " << r_diff->to_str() << endl; 
+    */
+    switch (func_type) {
+        case ADD: 
+            return shared_ptr<Binary<T>>(new Binary<T>(ADD, l_diff, r_diff));
+        case MINUS:
+            return shared_ptr<Binary<T>>(new Binary<T>(MINUS, l_diff, r_diff));
+        case MULTIPLY:
+            return shared_ptr<Binary<T>>(new Binary<T>(ADD,
+                shared_ptr<Binary<T>>(new Binary<T>(MULTIPLY, l_diff, r)),
+                shared_ptr<Binary<T>>(new Binary<T>(MULTIPLY, l, r_diff))
+            ));
+        case DIVIDE:
+            return shared_ptr<Binary<T>>(new Binary<T>(DIVIDE,
+                shared_ptr<Binary<T>>(new Binary(MINUS,
+                    shared_ptr<Binary<T>>(new Binary(MULTIPLY, l_diff, r)),
+                    shared_ptr<Binary<T>>(new Binary(MULTIPLY, l, r_diff))
+                )),
+                shared_ptr<Binary<T>>(new Binary<T>(POW, r, shared_ptr<Value<T>>(new Value<T>(2))))
+            ));
+
+        case POW:
+            if (typeid(*r) == typeid(Value<T>)) {
+                return shared_ptr<Binary<T>>(new Binary<T>(MULTIPLY,
+                    r, shared_ptr<Binary<T>>(new Binary<T>(POW, l, 
+                        shared_ptr<Binary<T>>(new Binary<T>(MINUS, 
+                            r, shared_ptr<Value<T>>(new Value<T>(1))
+                        ))
+                    ))
+                ));
+            }
+    
+            shared_ptr<Binary<T>> p (new Binary<T>(MULTIPLY, r, shared_ptr<Mono<T>>(new Mono<T>(LN, l))));
+            return shared_ptr<Binary<T>>(new Binary<T>(MULTIPLY, 
+                shared_ptr<Binary<T>>(new Binary<T>(POW, r, l)), p->diff(context)
+            ));
+        }
+   return shared_ptr<ExpressionInterface<T>>();
+}
+
+
+template <typename T>
+inline shared_ptr<ExpressionInterface<T>> Mono<T>::diff(string &context) const {
+    shared_ptr<ExpressionInterface<T>> r = this->right;
+    shared_ptr<ExpressionInterface<T>> r_diff = this->right->diff(context);
+    switch (func_type) {
+        case LN:
+            return shared_ptr<Binary<T>>(new Binary<T>(MULTIPLY, 
+                r_diff,
+                shared_ptr<Binary<T>>(new Binary<T>(DIVIDE, shared_ptr<Value<T>>(new Value<T>(1)), r))
+            ));
+        case EXP:
+            return shared_ptr<Binary<T>>(new Binary<T>(MULTIPLY, 
+                shared_ptr<Mono<T>>(new Mono<T>(func_type, r)), r_diff));
+        case SIN:
+            return shared_ptr<Binary<T>>(new Binary<T>(MULTIPLY, 
+                r_diff, shared_ptr<Mono<T>>(new Mono<T>(COS, r))));
+        case COS:
+            return shared_ptr<Binary<T>>(new Binary<T>(MULTIPLY, 
+                r_diff, shared_ptr<Binary<T>>(new Binary<T>(MULTIPLY, 
+                    shared_ptr<Value<T>>(new Value<T>(-1)), shared_ptr<Mono<T>>(new Mono<T>(SIN, r))))
+                ));
+        case BRACKETS: 
+            return r_diff;
+        }
+    return shared_ptr<ExpressionInterface<T>>();
+
+}
 
 #endif
