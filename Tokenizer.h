@@ -16,7 +16,9 @@ vector<string> tokenize(string &str) {
             s = "";
         }
         else if (c == '(') {
-            res.push_back(s);
+            if (s != "") {
+                res.push_back(s);
+            }
             s = c;
             res.push_back(s);
             s = "";
