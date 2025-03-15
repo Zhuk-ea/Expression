@@ -20,12 +20,23 @@ add_executable(tests
     src/main.cpp
 )
 
+add_executable(differentiator
+    src/differentiator.cpp   
+)
+
 target_link_libraries(tests PRIVATE
     Expression
 )
 
+target_link_libraries(differentiator PRIVATE
+    Expression
+)
 
 target_include_directories(tests PRIVATE
+    include
+)
+
+target_include_directories(differentiator PRIVATE
     include
 )
 
