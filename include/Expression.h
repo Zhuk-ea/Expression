@@ -37,6 +37,7 @@ class ExpressionInterface {
         shared_ptr<ExpressionInterface<T>> left = NULL;
         shared_ptr<ExpressionInterface<T>> right = NULL;
         int order = 0;
+        FuncTypes func_type;
 
         ExpressionInterface() = default;
         virtual ~ExpressionInterface() = default;
@@ -112,9 +113,8 @@ class Variable: public ExpressionInterface<T> {
 template <typename T>
 class Binary: public ExpressionInterface<T> {
     public:
-        FuncTypes func_type;
         Binary(FuncTypes func) {
-            func_type = func;
+            this->func_type = func;
             if (func == ADD || func == MINUS) {
                 this->order = 1;
                 return;
@@ -126,8 +126,8 @@ class Binary: public ExpressionInterface<T> {
             this->order = 2;
         }
         Binary(FuncTypes func,shared_ptr<ExpressionInterface<T>> &l) {
-            func_type = func;
-            func_type = func;
+            this->func_type = func;
+            this->func_type = func;
             if (func == ADD || func == MINUS) {
                 this->order = 1;
                 return;
@@ -140,7 +140,7 @@ class Binary: public ExpressionInterface<T> {
             this->left = l;
         }
         Binary(FuncTypes func, shared_ptr<ExpressionInterface<T>> &l, shared_ptr<ExpressionInterface<T>> &r ) {
-            func_type = func;
+            this->func_type = func;
             if (func == ADD || func == MINUS) {
                 this->order = 1;
                 this->left = l;
@@ -158,7 +158,7 @@ class Binary: public ExpressionInterface<T> {
             this->right = r;
         }
         Binary(FuncTypes func, const shared_ptr<ExpressionInterface<T>> &l, const shared_ptr<ExpressionInterface<T>> &r ) {
-            func_type = func;
+            this->func_type = func;
             if (func == ADD || func == MINUS) {
                 this->order = 1;
                 this->left = l;
@@ -179,7 +179,7 @@ class Binary: public ExpressionInterface<T> {
         virtual ~Binary() override = default;
     
         virtual T eval(map<string, T> context) const override {
-            switch (func_type) {
+            switch (this->func_type) {
                 case ADD:
                     return this->left->eval(context) + this->right ->eval(context);
                 case MINUS:
@@ -205,7 +205,7 @@ class Binary: public ExpressionInterface<T> {
                 s += this->left->to_str();
             }
 
-            switch (func_type) {
+            switch (this->func_type) {
                 case ADD:
                     s += " + ";
                     break;
@@ -308,6 +308,43 @@ class Mono: public ExpressionInterface<T> {
     };
 
 template <typename T>
+shared_ptr<ExpressionInterface<T>> optimize(shared_ptr<ExpressionInterface<T>> expr) {
+    if (typeid(*expr) == typeid(Mono<T>)) {
+        expr->left = optimize(expr->left);
+    }
+    else if (typeid(*expr) == typeid(Binary<T>)) {
+        expr->left = optimize(expr->left);
+        expr->right = optimize(expr->right);
+        switch (expr->func_type) {
+            case ADD:    
+                if (typeid(*expr->left) == typeid(Value<T>) && expr->left->eval({}) == (T)0) {
+                    return expr->right;
+                }
+                if (typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)0) {
+                    return expr->left;
+                }
+            case MINUS:
+                if (typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)0) {
+                    return expr->left;
+                }
+            case MULTIPLY:
+                if ((typeid(*expr->left) == typeid(Value<T>) && expr->left->eval({}) == (T)0) || typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)0) {
+                    return shared_ptr<Value<T>>(new Value<T>((T)0));
+                }
+            case DIVIDE:
+                if (typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)1) {
+                    return expr->left;
+                }
+            case POW:
+                if (typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)0) {
+                    return shared_ptr<Value<T>>(new Value<T>((T)1));
+                }
+            }
+    }
+    return expr;
+}
+
+template <typename T>
 class Expression {
     public:
         Expression<T>(string &str);
@@ -321,6 +358,9 @@ class Expression {
             Expr = t;
         }
         Expression(const shared_ptr<ExpressionInterface<T>> &p) {
+            Expr = p;
+        }
+        Expression(shared_ptr<ExpressionInterface<T>> &p) {
             Expr = p;
         }
 
@@ -408,17 +448,20 @@ class Expression {
             return  Expr->to_str();
         }
         Expression diff(string& context) {
-            return Expression(Expr->diff(context));
+            shared_ptr<ExpressionInterface<T>> p = optimize(Expr->diff(context));
+            return Expression(p);
         }
         Expression diff(const char* context) {
             string s = context;
-            return Expression(Expr->diff(s));
+            shared_ptr<ExpressionInterface<T>> p = optimize(Expr->diff(s));
+            return Expression(p);
         }
         Expression diff(char* context) {
             string s = context;
-            return Expression(Expr->diff(s));
+            shared_ptr<ExpressionInterface<T>> p = optimize(Expr->diff(s));
+            return Expression(p);
         }
-        //shared_ptr<Expression<T>> diff(string context) const;
+
         
     private:
         shared_ptr<ExpressionInterface<T>> Expr;
@@ -472,37 +515,31 @@ shared_ptr<ExpressionInterface<T>> pars(T type, vector<string> &vec, int &index)
     shared_ptr<ExpressionInterface<T>> root(new Mono<T>(BRACKETS));
     shared_ptr<ExpressionInterface<T>> now = root;
     auto siz = vec.size();
-    //cout << "Start pars [ " << vec[index]<< " ]-----------------\n";
-    if ('0' <= vec[index][0] && vec[index][0] <= '9') { // Получаем константу
-        //cout << "Get const\n";
+    if ('0' <= vec[index][0] && vec[index][0] <= '9') {
         shared_ptr<Value<T>> t = create_value(type, vec, index);
         root->right = t;
-        if (index == (siz-1)) { // Последний элемент выражения
-            //cout << "End pars -----------------\n";
+        if (index == (siz-1)) {
             return root->right;
         }
     }
-    else if (('a' <= vec[index][0] && vec[index][0] <= 'z') || ('A' <= vec[index][0] && vec[index][0] <= 'Z')){ // Получаем переменную или функцию
-        //cout << "Get var or func\n";
-        if (vec.size() > (index+1)) { // Не последний операнд
-            if (vec[index+1][0] != '(') { // После не идут скобки
+    else if (('a' <= vec[index][0] && vec[index][0] <= 'z') || ('A' <= vec[index][0] && vec[index][0] <= 'Z')){ 
+        if (vec.size() > (index+1)) {
+            if (vec[index+1][0] != '(') { 
                 shared_ptr<ExpressionInterface<T>> t = create_variable(type, vec, index);
                 root->right = t;
             }
-            else { // После идут скобки, то есть это функция
+            else { 
                 shared_ptr<ExpressionInterface<T>> t = create_mono(type, vec, index);
                 root->right = t;
             }
         }
-        else { // Последний операнд, значит после не может быть скобок и это переменная
+        else { 
             shared_ptr<ExpressionInterface<T>> t = create_variable(type, vec, index);
             root->right = t;
-            //cout << "End pars -----------------\n";
             return root->right;
         }
     }
-    else if (vec[index][0] == '(') { // Получаем скобку
-        //cout << "Get open bracket\n";
+    else if (vec[index][0] == '(') { 
         shared_ptr<ExpressionInterface<T>> t = create_mono(type, vec, index);
         root->right = t;
     }
@@ -510,19 +547,15 @@ shared_ptr<ExpressionInterface<T>> pars(T type, vector<string> &vec, int &index)
         cout << "ERRROR!\n";
     }
     if (index == siz) { 
-        //cout << "End pars -----------------\n";
         return root->right;
     }
 
-    //cout <<"| " << index << endl;
-    if (vec[index][0] == ')') { // Закрываем скобку
-        //cout << "Get close bracket\n";
+
+    if (vec[index][0] == ')') { 
         ++index;
-        //cout << "End pars -----------------\n";
         return root->right;
     }
 
-    //cout << vec[index] << endl;
     FuncTypes func;
     switch (vec[index][0]) {
         case '+':
@@ -549,7 +582,6 @@ shared_ptr<ExpressionInterface<T>> pars(T type, vector<string> &vec, int &index)
     shared_ptr<ExpressionInterface<T>> temp = pars(type, vec, index);
     if (typeid(*temp) != typeid(Binary<T>) || (temp->order >= b->order)) {
         b->right = temp;
-        //cout << "End pars(0) -----------------\n";
         return root->right;
     }
     
@@ -557,7 +589,6 @@ shared_ptr<ExpressionInterface<T>> pars(T type, vector<string> &vec, int &index)
     root->right = temp;
     b->right = ttemp;
     temp->left = b;
-    //cout << "End pars(1) -----------------\n";
     return root->right;
 }
 
@@ -566,12 +597,6 @@ inline Expression<T>::Expression(string &str) {
     T type;
     int index = 0;
     vector<string> vec = tokenize(str);
-    /*
-    for (int i = 0; i < vec.size(); ++i) {
-        cout << vec[i] << endl;
-    }
-    cout << "-----\n";
-    */
     this->Expr = pars(type, vec, index);
 }
 
@@ -591,11 +616,8 @@ inline shared_ptr<ExpressionInterface<T>> Binary<T>::diff(string &context) const
     shared_ptr<ExpressionInterface<T>> r = this->right;
     shared_ptr<ExpressionInterface<T>> l_diff = this->left->diff(context);
     shared_ptr<ExpressionInterface<T>> r_diff = this->right->diff(context);
-    /*
-    cout << "l_diff: " << l_diff->to_str() << endl; 
-    cout << "r_diff: " << r_diff->to_str() << endl; 
-    */
-    switch (func_type) {
+
+    switch (this->func_type) {
         case ADD: 
             return shared_ptr<Binary<T>>(new Binary<T>(ADD, l_diff, r_diff));
         case MINUS:
