@@ -7,6 +7,7 @@
 #include <complex>
 #include <cmath>
 #include <stdlib.h>
+#include <iostream>
 #include "Tokenizer.h"
 
 
@@ -47,26 +48,7 @@ class ExpressionInterface {
 
 };
 
-string to_string(const complex<double> &value) {
-    string s = "";
-    if (value.real() != 0) {
-        s += to_string(value.real());
-    } 
-    double a = value.imag();
-    if (a > 0) {
-        if (value.real() != 0) {
-            s += " + ";
-        }
-        s +=  to_string(value.imag()) + "i";
-    }
-    else if (a < 0) {
-        if (value.real() != 0) {
-            s += " - ";
-        }
-        s += to_string(abs(value.imag())) + "i";
-    }
-    return s;
-}
+string to_string(const complex<double> &value);
 
 template <typename T>
 class Value: public ExpressionInterface<T> {
@@ -95,35 +77,13 @@ class Value: public ExpressionInterface<T> {
 };
 
 
-double var_eval(map<string, double> context, const string &name) {
-    return context[name];
-}
-complex<double> var_eval(map<string, complex<double>> &context, const string &name) {
-    if (name.back() == 'i') {
-        string s = name;
-        s.pop_back();
-        return context[s]*1i;
-    }
-    return context[name];
-}
+double var_eval(map<string, double> context, const string &name);
+complex<double> var_eval(map<string, complex<double>> &context, const string &name);
 
 
-double var_diff(double type, const string &name, string &context) {
-    if (name == context)
-        return 1;
-    return 0;
-}
+double var_diff(double type, const string &name, string &context);
 
-complex<double> var_diff(complex<double> type, const string &name, string &context) {
-    string s = name;
-    if (s.back() == 'i') {
-        s.pop_back();
-    }
-    if (s == context) {
-        return 1i;
-    }
-    return 0;
-}
+complex<double> var_diff(complex<double> type, const string &name, string &context);
 
 template <typename T>
 class Variable: public ExpressionInterface<T> {
@@ -351,6 +311,7 @@ template <typename T>
 class Expression {
     public:
         Expression<T>(string &str);
+        Expression<T>(const char * str);
         Expression(double num) {
             shared_ptr<Value<double>> t(new Value<double>(num));
             Expr = t;
@@ -467,29 +428,8 @@ template <typename T>
 shared_ptr<ExpressionInterface<T>> pars(T type, vector<string> &vec, int &index);
 
 
-shared_ptr<Value<double>> create_value(double type, vector<string> &vec, int &index) { 
-    double t = stod(vec[index]);
-    shared_ptr<Value<double>> res = make_shared<Value<double>>(t);
-    ++index;
-    return res;
-}
-shared_ptr<Value<complex<double>>> create_value(complex<double> type, vector<string> &vec, int &index) { 
-    using namespace complex_literals;
-    complex<double> c;
-    if (vec[index].back() != 'i') {
-        double t = stod(vec[index]);
-        c = t + 0i;
-    }
-    else {
-        string s = vec[index];
-        s.pop_back(); 
-        double t = stod(vec[index]);
-        c = t*1i;
-    }
-    shared_ptr<Value<complex<double>>> res = make_shared<Value<complex<double>>>(c);
-    ++index;
-    return res;
-}
+shared_ptr<Value<double>> create_value(double type, vector<string> &vec, int &index);
+shared_ptr<Value<complex<double>>> create_value(complex<double> type, vector<string> &vec, int &index);
 
 template <typename T>
 shared_ptr<Variable<T>> create_variable(T type, vector<string> &vec, int &index) {
@@ -635,6 +575,14 @@ inline Expression<T>::Expression(string &str) {
     this->Expr = pars(type, vec, index);
 }
 
+template <typename T>
+inline Expression<T>::Expression(const char *str) {
+    T type;
+    int index = 0;
+    string s = str;
+    vector<string> vec = tokenize(s);
+    this->Expr = pars(type, vec, index);
+}
 
 template <typename T>
 inline shared_ptr<ExpressionInterface<T>> Binary<T>::diff(string &context) const {

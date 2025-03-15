@@ -1,10 +1,5 @@
-#ifndef TOKENIZER_H_
-#define TOKENIZER_H_
- 
-#include <string>
-#include <vector>
+#include "../include/Tokenizer.h"
 
-using namespace std;
 
 vector<string> tokenize(string &str) {
     vector<string> res;
@@ -40,7 +35,3 @@ vector<string> tokenize(string &str) {
     res.push_back(s);
     return res;
 }
-
-
-
-#endif
