@@ -33,7 +33,6 @@ enum FuncTypes {
 template <typename T>
 class ExpressionInterface {
     public:
-        shared_ptr<ExpressionInterface<T>> parent = NULL;
         shared_ptr<ExpressionInterface<T>> left = NULL;
         shared_ptr<ExpressionInterface<T>> right = NULL;
         int order = 0;
