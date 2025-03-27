@@ -43,9 +43,6 @@ class ExpressionInterface {
         virtual T eval(std::map<string, T> context) const = 0;
         virtual string to_str() const = 0;
         virtual shared_ptr<ExpressionInterface<T>> diff(string & context) const = 0;
-
-        
-
 };
 
 string to_string(const complex<double> &value);
@@ -309,7 +306,7 @@ class Mono: public ExpressionInterface<T> {
 template <typename T>
 shared_ptr<ExpressionInterface<T>> optimize(shared_ptr<ExpressionInterface<T>> expr) {
     if (typeid(*expr) == typeid(Mono<T>)) {
-        expr->left = optimize(expr->left);
+        expr->right = optimize(expr->right);
     }
     else if (typeid(*expr) == typeid(Binary<T>)) {
         expr->left = optimize(expr->left);
@@ -326,6 +323,9 @@ shared_ptr<ExpressionInterface<T>> optimize(shared_ptr<ExpressionInterface<T>> e
                 if (typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)0) {
                     return expr->left;
                 }
+                if (typeid(*expr->right) == typeid(Value<T>) && typeid(*expr->left) == typeid(Value<T>)) {
+                    return shared_ptr<Value<T>>(new Value<T>(expr->left->eval({}) - expr->right->eval({})));
+                }
             case MULTIPLY:
                 if ((typeid(*expr->left) == typeid(Value<T>) && expr->left->eval({}) == (T)0) || typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)0) {
                     return shared_ptr<Value<T>>(new Value<T>((T)0));
@@ -337,6 +337,9 @@ shared_ptr<ExpressionInterface<T>> optimize(shared_ptr<ExpressionInterface<T>> e
             case POW:
                 if (typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)0) {
                     return shared_ptr<Value<T>>(new Value<T>((T)1));
+                }
+                if (typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)1) {
+                    return expr->left;
                 }
             }
     }

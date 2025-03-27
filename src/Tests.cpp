@@ -71,6 +71,22 @@ void eval_double_test() {
     }
 }
 
+void eval_double_test2() {
+    // given
+    Expression<double> a("x + (-5)");
+    double correct_anw = -3;
+    // when 
+    double res = a.eval({{"x", 2}});
+    // then
+
+    if (res == correct_anw) {
+        cout << "OK\n";
+    }
+    else {
+        cout << "FAIL\n";
+    }
+}
+
 void eval_complex_test() {
     // given
     Expression<complex<double>> a("x + 5");
@@ -90,8 +106,40 @@ void eval_complex_test() {
 void diff_double_test() {
     // given
     Expression<double> a("5 + x");
-    Expression<double> correct_anw("0 + 1");
+    Expression<double> correct_anw("1");
 
+    // when 
+    Expression<double> res = a.diff("x");
+    // then
+
+    if (res.to_str() == correct_anw.to_str()) {
+        cout << "OK\n";
+    }
+    else {
+        cout << "FAIL\n";
+    }
+}
+
+void diff_double_test2() {
+    // given
+    Expression<double> a("sin(x^2)");
+    Expression<double> correct_anw("2 * x * cos(x^2)");
+    // when 
+    Expression<double> res = a.diff("x");
+    // then
+
+    if (res.to_str() == correct_anw.to_str()) {
+        cout << "OK\n";
+    }
+    else {
+        cout << "FAIL\n";
+    }
+}
+
+void diff_double_long_expression_test() {
+    // given
+    Expression<double> a("sin(x^2) / (5 * x - 10 * x^2)");
+    Expression<double> correct_anw("(2 * x * cos(x^2) * (5 * x - 10 * x^2) - sin(x^2) * (5 - 10 * 2 * x)) / (5 * x - 10 * x^2)^2");
     // when 
     Expression<double> res = a.diff("x");
     // then
@@ -108,7 +156,7 @@ void diff_double_test() {
 void diff_complex_test() {
     // given
     Expression<complex<double>> a("5 + xi");
-    string correct_anw = "0.000000 + 1.000000i";
+    string correct_anw = "1.000000i";
 
     // when 
     Expression<complex<double>>  res = a.diff("x");
