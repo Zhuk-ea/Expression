@@ -18,6 +18,7 @@ void eval_complex_test();
 
 void diff_double_test();
 void diff_double_test2();
+void diff_double_test3();
 void diff_double_long_expression_test();
 
 

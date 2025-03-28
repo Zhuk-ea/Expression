@@ -319,6 +319,7 @@ shared_ptr<ExpressionInterface<T>> optimize(shared_ptr<ExpressionInterface<T>> e
                 if (typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)0) {
                     return expr->left;
                 }
+                break;
             case MINUS:
                 if (typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)0) {
                     return expr->left;
@@ -326,14 +327,23 @@ shared_ptr<ExpressionInterface<T>> optimize(shared_ptr<ExpressionInterface<T>> e
                 if (typeid(*expr->right) == typeid(Value<T>) && typeid(*expr->left) == typeid(Value<T>)) {
                     return shared_ptr<Value<T>>(new Value<T>(expr->left->eval({}) - expr->right->eval({})));
                 }
+                break;
             case MULTIPLY:
                 if ((typeid(*expr->left) == typeid(Value<T>) && expr->left->eval({}) == (T)0) || typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)0) {
                     return shared_ptr<Value<T>>(new Value<T>((T)0));
                 }
+                if ((typeid(*expr->left) == typeid(Value<T>) && expr->left->eval({}) == (T)1)) {
+                    return expr->right;
+                }
+                if ((typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)1)) {
+                    return expr->left;
+                }
+                break;
             case DIVIDE:
                 if (typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)1) {
                     return expr->left;
                 }
+                break;
             case POW:
                 if (typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)0) {
                     return shared_ptr<Value<T>>(new Value<T>((T)1));
@@ -341,6 +351,7 @@ shared_ptr<ExpressionInterface<T>> optimize(shared_ptr<ExpressionInterface<T>> e
                 if (typeid(*expr->right) == typeid(Value<T>) && expr->right->eval({}) == (T)1) {
                     return expr->left;
                 }
+                break;
             }
     }
     return expr;
@@ -455,7 +466,9 @@ class Expression {
         }
         Expression diff(const char* context) {
             string s = context;
-            shared_ptr<ExpressionInterface<T>> p = optimize(Expr->diff(s));
+            shared_ptr<ExpressionInterface<T>> t = Expr->diff(s);
+            Expression temp(t);
+            shared_ptr<ExpressionInterface<T>> p = optimize(t);
             return Expression(p);
         }
         Expression diff(char* context) {

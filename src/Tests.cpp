@@ -136,6 +136,23 @@ void diff_double_test2() {
     }
 }
 
+void diff_double_test3() {
+    // given
+    Expression<double> a("x * sin(x + 1)");
+    Expression<double> correct_anw("sin(x + 1) + x * cos(x + 1)");
+    // when 
+    Expression<double> res = a.diff("x");
+    // then
+
+    if (res.to_str() == correct_anw.to_str()) {
+        cout << "OK\n";
+    }
+    else {
+        cout << "FAIL\n";
+    }
+}
+
+
 void diff_double_long_expression_test() {
     // given
     Expression<double> a("sin(x^2) / (5 * x - 10 * x^2)");
